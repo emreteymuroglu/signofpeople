@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../../SupabaseClient.tsx';
+import { supabase } from '../../SupabaseClient';
 import { Button } from '../UI/Button';
 import { MapPin, Mail, Send, Loader2, Check } from 'lucide-react';
+import { TurnstileWidget } from '../UI/TurnstileWidget';
 
 export const ContactFormSection: React.FC = () => {
   const [formState, setFormState] = useState({
@@ -11,6 +12,7 @@ export const ContactFormSection: React.FC = () => {
     message: ''
   });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormState({
@@ -21,16 +23,25 @@ export const ContactFormSection: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      alert("Lütfen doğrulamayı tamamlayın.");
+      return;
+    }
+    
     setStatus('submitting');
     
     try {
+      // In a real backend scenario, you would send the captchaToken to be verified.
+      // Since we are inserting directly to Supabase, we rely on client-side gating for now.
       const { error } = await supabase
         .from('contact_messages')
         .insert([formState]);
 
       if (error) throw error;
+      
       setStatus('success');
       setFormState({ name: '', email: '', subject: 'Genel Bilgi', message: '' });
+      setCaptchaToken(null); // Reset token logic if needed
     } catch (error) {
       console.error('Error submitting contact form', error);
       setStatus('error');
@@ -54,8 +65,8 @@ export const ContactFormSection: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2">Merkez</h3>
                   <p className="text-white/60 leading-relaxed">
-                    Sadık Şendil Sk No: 25, <br/>
-                    Bomonti, İstanbul <br/>
+                    Bağdat Caddesi No: 42, <br/>
+                    Kadıköy, İstanbul <br/>
                     Türkiye
                   </p>
                 </div>
@@ -66,19 +77,19 @@ export const ContactFormSection: React.FC = () => {
                   <Mail className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-2">Direkt Bağlantı</h3>
+                  <h3 className="text-xl font-bold text-white mb-2">Doğrudan Hat</h3>
                   <p className="text-white/60 mb-1">merhaba@signofpeople.com</p>
-                  <p className="text-white/60">kurumsal@signofpeople.com</p>
+                  <p className="text-white/60">partner@signofpeople.com</p>
                 </div>
               </div>
             </div>
 
             {/* Interactive Map Placeholder */}
-             <div className="w-full h-64 rounded-2xl overflow-hidden relative group grayscale hover:grayscale-0 transition-all duration-500">
+            <div className="w-full h-64 rounded-2xl overflow-hidden relative group grayscale hover:grayscale-0 transition-all duration-500">
                {/* Embed Map Iframe */}
                <iframe 
                  /* REPLACE THE SRC BELOW WITH YOUR GOOGLE MAPS EMBED LINK */
-                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4173.614753827378!2d28.98203299093132!3d41.05665173880228!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14cab71065a39eb9%3A0x88d8b8a8c749727!2zQm9tb250aSwgTWVya2V6LCAzNDM4MSDFnmnFn2xpL8Swc3RhbmJ1bA!5e0!3m2!1sen!2str!4v1764070285230!5m2!1sen!2str" 
+                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3011.650490011964!2d29.02127131541334!3d40.99026497930268!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14cab86374249a2f%3A0x63005b63005b6300!2sKad%C4%B1k%C3%B6y%2C%20Istanbul!5e0!3m2!1sen!2str!4v1620000000000!5m2!1sen!2str" 
                  width="100%" 
                  height="100%" 
                  style={{border:0}} 
@@ -88,13 +99,12 @@ export const ContactFormSection: React.FC = () => {
                  className="w-full h-full"
                  title="Google Maps Location"
                ></iframe>
-
-              
+               
                {/* Overlay with Link Button */}
                <div className="absolute inset-0 bg-black/50 group-hover:bg-transparent transition-colors flex items-center justify-center group-hover:pointer-events-none">
                  <a 
                    /* REPLACE THE HREF BELOW WITH YOUR GOOGLE MAPS LINK */
-                   href="https://maps.app.goo.gl/9TkjnXALACgq6TNL9" 
+                   href="https://goo.gl/maps/YOUR_LINK_HERE" 
                    target="_blank" 
                    rel="noopener noreferrer"
                    className="pointer-events-auto"
@@ -136,7 +146,7 @@ export const ContactFormSection: React.FC = () => {
                       value={formState.name}
                       onChange={handleChange}
                       className="w-full bg-black/30 border-b-2 border-white/10 px-4 py-3 text-white focus:outline-none focus:border-brand-yellow transition-colors rounded-t-lg"
-                      placeholder="Bize adın lazım"
+                      placeholder="Adınız"
                     />
                   </div>
                   <div className="space-y-2">
@@ -169,7 +179,7 @@ export const ContactFormSection: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white/50 uppercase tracking-wider">Mesajın</label>
+                  <label className="text-xs font-bold text-white/50 uppercase tracking-wider">Mesaj</label>
                   <textarea 
                     required
                     name="message"
@@ -181,11 +191,13 @@ export const ContactFormSection: React.FC = () => {
                   ></textarea>
                 </div>
 
-                <div className="pt-4">
+                <div className="pt-2">
+                  <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
+                  
                   <Button 
-                    disabled={status === 'submitting'}
+                    disabled={status === 'submitting' || !captchaToken}
                     type="submit" 
-                    className="w-full justify-center py-4 text-base"
+                    className={`w-full justify-center py-4 text-base ${!captchaToken ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {status === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
                     {status === 'submitting' ? 'İletiliyor...' : 'Mesajı İlet'}

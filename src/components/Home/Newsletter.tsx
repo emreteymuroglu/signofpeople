@@ -2,15 +2,25 @@ import React, { useState } from 'react';
 import { supabase } from '../../SupabaseClient';
 import { Button } from '../UI/Button';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { TurnstileWidget } from '../UI/TurnstileWidget';
 
 export const Newsletter: React.FC = () => {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
+    if (!captchaToken) {
+       setErrorMessage("Lütfen robot olmadığınızı doğrulayın.");
+       setStatus('error');
+       return;
+    }
+
     setStatus('submitting');
+    setErrorMessage('');
     
     try {
       const { error } = await supabase
@@ -18,7 +28,7 @@ export const Newsletter: React.FC = () => {
         .insert([{ email: email.trim() }]);
         
       if (error) {
-        if (error.code === '23505') { // Unique violation code
+        if (error.code === '23505') { // Unique violation code (duplicate email)
            setStatus('success'); // Treat duplicate as success from UX perspective
            return;
         }
@@ -27,9 +37,10 @@ export const Newsletter: React.FC = () => {
       
       setStatus('success');
       setEmail('');
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error('Newsletter error:', error);
       setStatus('error');
+      setErrorMessage(error.message || 'Bir hata oluştu. Lütfen tekrar dene.');
     }
   };
 
@@ -47,7 +58,7 @@ export const Newsletter: React.FC = () => {
               HİÇBİR ANI <br/> <span className="text-brand-yellow">KAÇIRMA.</span>
             </h2>
             <p className="text-white/60 text-lg">
-              Tüm etkinliklerin, gizli buluşmaların ve topluluk hikayelerinin haftalık özetini doğrudan e-postana al.
+              Yeraltı etkinlikleri, gizli buluşmalar ve topluluk hikayelerinin haftalık özetini doğrudan e-postana al.
             </p>
           </div>
           
@@ -63,31 +74,41 @@ export const Newsletter: React.FC = () => {
                  </div>
                </div>
             ) : (
-              <>
-                <form className="flex flex-col sm:flex-row gap-4" onSubmit={handleSubmit}>
-                  <input 
-                    type="email" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="eposta@adresin.com" 
-                    className="flex-grow bg-white/10 border border-white/20 rounded-full px-6 py-4 text-white placeholder-white/40 focus:outline-none focus:border-brand-yellow focus:bg-white/5 transition-all"
-                    required
-                  />
-                  <Button disabled={status === 'submitting'} type="submit" className="whitespace-nowrap min-w-[140px]">
+              <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+                <div className="flex flex-col sm:flex-row gap-4 w-full">
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="eposta@adresin.com" 
+                      className="flex-grow bg-white/10 border border-white/20 rounded-full px-6 py-4 text-white placeholder-white/40 focus:outline-none focus:border-brand-yellow focus:bg-white/5 transition-all"
+                      required
+                    />
+                    <Button disabled={status === 'submitting'} type="submit" className="whitespace-nowrap min-w-[140px] hidden sm:flex">
+                      {status === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Abone Ol'}
+                    </Button>
+                </div>
+                
+                {/* Mobile Button - separate for layout */}
+                <Button disabled={status === 'submitting'} type="submit" className="whitespace-nowrap w-full sm:hidden">
                     {status === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Abone Ol'}
-                  </Button>
-                </form>
-                <div className="mt-4 text-xs text-white/30 min-h-[20px]">
+                </Button>
+
+                <div className="mt-2">
+                   <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
+                </div>
+
+                <div className="text-xs text-white/30 min-h-[20px]">
                   {status === 'error' ? (
                     <span className="text-red-400 flex items-center gap-2 animate-pulse">
                       <AlertCircle className="w-3 h-3" />
-                      Bir hata oluştu. Lütfen tekrar dene.
+                      {errorMessage}
                     </span>
                   ) : (
-                    "Abone olarak KVKK ve Gizlilik Politikamızı kabul etmiş olursun. Asla spam yok."
+                    "Abone olarak Gizlilik Politikamızı kabul etmiş olursun. Asla spam yok."
                   )}
                 </div>
-              </>
+              </form>
             )}
           </div>
         </div>

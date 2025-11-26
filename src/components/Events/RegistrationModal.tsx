@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../SupabaseClient.tsx';
+import { supabase } from '../../SupabaseClient';
 import { X, Check, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '../UI/Button';
+import { TurnstileWidget } from '../UI/TurnstileWidget';
 
 interface RegistrationModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({ isOpen, on
   const [isClosing, setIsClosing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -29,6 +31,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({ isOpen, on
     if (isOpen) {
       setIsClosing(false);
       setStatus('idle');
+      setCaptchaToken(null);
       setFormData({ firstName: '', lastName: '', email: '', phone: '', message: '' });
       document.body.style.overflow = 'hidden';
     } else {
@@ -44,24 +47,29 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({ isOpen, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+        return;
+    }
+
     setStatus('submitting');
     
     try {
+      const registrationData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        message: formData.message,
+        event_id: eventId,
+        event_name: eventName
+      };
+
       const { error } = await supabase
         .from('registrations')
-        .insert([
-          {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone,
-            message: formData.message,
-            event_id: eventId,
-            event_name: eventName
-          }
-        ]);
+        .insert([registrationData]);
 
       if (error) throw error;
+      
       setStatus('success');
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -81,10 +89,10 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({ isOpen, on
       ></div>
 
       {/* Modal Content */}
-      <div className={`relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden transition-transform duration-300 ${isClosing ? 'scale-95 translate-y-4' : 'scale-100 translate-y-0'} animate-fade-in-up`}>
+      <div className={`relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden transition-transform duration-300 ${isClosing ? 'scale-95 translate-y-4' : 'scale-100 translate-y-0'} animate-fade-in-up max-h-[90vh] overflow-y-auto`}>
         
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-white/5">
+        <div className="flex justify-between items-center p-6 border-b border-white/5 sticky top-0 bg-[#0a0a0a] z-10">
           <h3 className="text-xl font-bold text-white">Yerini Ayırt</h3>
           <button 
             onClick={handleClose}
@@ -177,10 +185,12 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({ isOpen, on
               </div>
 
               <div className="pt-4">
+                <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
+
                 <Button 
-                  disabled={status === 'submitting'}
+                  disabled={status === 'submitting' || !captchaToken}
                   type="submit" 
-                  className="w-full justify-center py-4 text-base"
+                  className={`w-full justify-center py-4 text-base ${!captchaToken ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {status === 'submitting' ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../SupabaseClient';
 import { X, Check, Loader2, Calendar, AlertCircle } from 'lucide-react';
 import { Button } from '../UI/Button';
+import { TurnstileWidget } from '../UI/TurnstileWidget';
 
 interface JoinModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [events, setEvents] = useState<{id: string, title: string, date: string}[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -28,7 +30,6 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     const fetchEvents = async () => {
       setLoadingEvents(true);
-      // Fixed: Select date_display instead of date, and removed invalid order
       const { data, error } = await supabase
         .from('events')
         .select('id, title, date_display')
@@ -39,11 +40,10 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
       }
       
       if (data) {
-        // Map date_display to the local date property
         const mappedEvents = data.map((e: any) => ({
           id: e.id,
           title: e.title,
-          date: e.date_display // DB column is date_display
+          date: e.date_display
         }));
 
         setEvents(mappedEvents);
@@ -61,6 +61,7 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
     if (isOpen) {
       setIsClosing(false);
       setStatus('idle');
+      setCaptchaToken(null);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -75,24 +76,31 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+        return; // Button disabled anyway
+    }
+
     setStatus('submitting');
     
     try {
       const selectedEventObj = events.find(e => e.id === formData.selectedEvent);
 
+      const submissionData = {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          message: formData.message,
+          event_id: formData.selectedEvent || null,
+          event_name: selectedEventObj?.title || 'General Join'
+      };
+
       const { error } = await supabase
         .from('registrations')
-        .insert([{
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone,
-            message: formData.message,
-            event_id: formData.selectedEvent || null,
-            event_name: selectedEventObj?.title || 'General Join'
-        }]);
+        .insert([submissionData]);
 
       if (error) throw error;
+      
       setStatus('success');
     } catch (error) {
       console.error(error);
@@ -111,10 +119,10 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
       ></div>
 
       {/* Modal Content */}
-      <div className={`relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden transition-transform duration-300 ${isClosing ? 'scale-95 translate-y-4' : 'scale-100 translate-y-0'} animate-fade-in-up`}>
+      <div className={`relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden transition-transform duration-300 ${isClosing ? 'scale-95 translate-y-4' : 'scale-100 translate-y-0'} animate-fade-in-up max-h-[90vh] overflow-y-auto`}>
         
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-white/5">
+        <div className="flex justify-between items-center p-6 border-b border-white/5 sticky top-0 bg-[#0a0a0a] z-10">
           <h3 className="text-xl font-bold text-white">Topluluğa Katıl</h3>
           <button 
             onClick={handleClose}
@@ -231,10 +239,12 @@ export const JoinModal: React.FC<JoinModalProps> = ({ isOpen, onClose }) => {
               </div>
 
               <div className="pt-2">
+                <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
+
                 <Button 
-                  disabled={status === 'submitting'}
+                  disabled={status === 'submitting' || !captchaToken}
                   type="submit" 
-                  className="w-full justify-center py-4 text-base"
+                  className={`w-full justify-center py-4 text-base ${!captchaToken ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {status === 'submitting' ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
